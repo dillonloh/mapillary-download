@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 import logging
+import yaml
 
 import requests
 
@@ -24,7 +25,7 @@ def setup_dirs():
     logger.info(f"Created directories: {SAVE_IMAGES_DIR}, {SAVE_IMAGES_METADATA_DIR}")
 
 
-def download_images(image_ids=None, bbox=None, creators=None):
+def download_images(image_ids=None, bbox=None, creators=None, creators_yaml=None):
     """
     Download images from Mapillary given a list of image IDs or a bbox [minLon, minLat, maxLon, maxLat].
     """
@@ -40,6 +41,13 @@ def download_images(image_ids=None, bbox=None, creators=None):
             download_image(image_id)
     elif bbox:
         logger.info(f"Downloading images in bbox {bbox}")
+        if creators_yaml:
+            logger.info(f"Using whitelist creators from YAML file: {creators_yaml}")
+            with open(creators_yaml, "r") as f:
+                creators_yaml_data = yaml.safe_load(f)
+                logger.debug(f"Creators loaded from YAML: {creators_yaml_data}")
+                creators = creators_yaml_data.get("whitelist_creators", None)
+
         if creators:
             logger.info(f"Filtering images by creators: {creators}")
             for creator in creators:
@@ -110,7 +118,8 @@ if __name__ == "__main__":
     parser.add_argument("--image_ids", nargs="+", help="List of Image IDs to download", default=None)
     parser.add_argument("--bbox", nargs=4, type=float, help="Bounding box coordinates [minLon, minLat, maxLon, maxLat]", default=None)
     parser.add_argument("--creators", nargs="+", help="List of creator usernames to filter images", default=None)
+    parser.add_argument("--creators-yaml", help="Path to YAML file with whitelist creators", default=None)
     args = parser.parse_args()
 
     setup_dirs()
-    download_images(image_ids=args.image_ids, bbox=args.bbox, creators=args.creators)
+    download_images(image_ids=args.image_ids, bbox=args.bbox, creators=args.creators, creators_yaml=args.creators_yaml)

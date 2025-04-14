@@ -75,13 +75,13 @@ def download_image(image_id):
                     "computed_compass_angle": data["computed_compass_angle"]}
         
         # Download the image
-        image_response = requests.get(image_url, stream=True)
+        image_response = requests.get(image_url)
         if image_response.status_code == 200:
             logger.info(f"Downloading image:{image_id}")
             
             image_path = os.path.join(SAVE_IMAGES_DIR, f"{image_id}.jpg")
             with open(image_path, "wb") as f:
-                shutil.copyfileobj(response.raw, f)
+                f.write(image_response.content)
         
         else:
             logger.info(f"Failed to download image {image_id}: {image_response.status_code}")

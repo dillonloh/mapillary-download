@@ -1,4 +1,6 @@
+import json
 import os
+import shutil
 import logging
 
 import requests
@@ -39,6 +41,7 @@ def download_images(image_ids=None, bbox=None, creators=None):
     elif bbox:
         logger.info(f"Downloading images in bbox {bbox}")
         if creators:
+            logger.info(f"Filtering images by creators: {creators}")
             for creator in creators:
                 # Fetch image IDs from Mapillary API using bbox
                 image_url = f"{BASE_URL}/images?access_token={os.getenv('MAPILLARY_API_TOKEN')}&bbox={','.join(map(str, bbox))}&creator_username={creator}&fields=thumb_original_url,computed_geometry,captured_at,computed_compass_angle,creator"
@@ -59,13 +62,13 @@ def download_image(image_id):
     Download an image from Mapillary given its ID.
     """
 
-    image_url = f"{BASE_URL}/images?access_token={os.getenv('MAPILLARY_API_TOKEN')}&fields=thumb_original_url,computed_geometry,captured_at,computed_compass_angle"
+    image_url = f"{BASE_URL}/{image_id}?access_token={os.getenv('MAPILLARY_API_TOKEN')}&fields=thumb_original_url,computed_geometry,captured_at,computed_compass_angle"
     logger.debug(f"Fetching image metadata from {image_url}")
     response = requests.get(image_url)
 
     if response.status_code == 200:
         data = response.json()
-        
+        logger.debug(f"JSON response: {data}")
         image_url = data["thumb_original_url"]
         metadata = {"computed_geometry": data["computed_geometry"],
                     "captured_at": data["captured_at"],
@@ -75,28 +78,39 @@ def download_image(image_id):
         image_response = requests.get(image_url, stream=True)
         if image_response.status_code == 200:
             logger.info(f"Downloading image:{image_id}")
-            pass
+            
+            image_path = os.path.join(SAVE_IMAGES_DIR, f"{image_id}.jpg")
+            with open(image_path, "wb") as f:
+                shutil.copyfileobj(response.raw, f)
         
         else:
             logger.info(f"Failed to download image {image_id}: {image_response.status_code}")
             logger.debug(f"image_response: {image_response.json()}")
             return None
         
+        # Save metadata
+        with open(os.path.join(SAVE_IMAGES_METADATA_DIR, f"{image_id}.json"), "w") as f:
+            json.dump(metadata, f)
+        
+        logger.info(f"Saved metadata for image {image_id}")
+
     else:
         logger.info(f"Failed to fetch image metadata {image_id}: {response.status_code}")
         logger.debug(f"Metadata fetch response: {response.json()}")
         return None
     
     # Save image and metadata
-    logger.info(f"Saving image {image_id} to {SAVE_IMAGES_DIR}")
-    logger.info(f"Saving metadata {image_id} to {SAVE_IMAGES_METADATA_DIR}")
+    logger.info(f"Saved image {image_id} to {SAVE_IMAGES_DIR}")
+    logger.info(f"Saved metadata {image_id} to {SAVE_IMAGES_METADATA_DIR}")
 
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Download images from Mapillary given their IDs.")
-    parser.add_argument("image_ids", nargs="+", help="List of Image IDs to download")
+    parser.add_argument("--image_ids", nargs="+", help="List of Image IDs to download", default=None)
+    parser.add_argument("--bbox", nargs=4, type=float, help="Bounding box coordinates [minLon, minLat, maxLon, maxLat]", default=None)
+    parser.add_argument("--creators", nargs="+", help="List of creator usernames to filter images", default=None)
     args = parser.parse_args()
 
     setup_dirs()
-    download_image(args.image_ids)
+    download_images(image_ids=args.image_ids, bbox=args.bbox, creators=args.creators)
